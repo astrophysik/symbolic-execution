@@ -167,6 +167,13 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 		default:
 			panic("unsupported type for ge")
 		}
+	case symbolic.MOD:
+		switch expr.Left.Type() {
+		case symbolic.IntType:
+			return left.(z3.Int).Mod(right.(z3.Int))
+		default:
+			panic("unsupported type for mod")
+		}
 	default:
 		panic("unsupported binary operation")
 	}

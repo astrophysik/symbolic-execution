@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/ebukreev/go-z3/z3"
+
 	"symbolic-execution-course/internal/symbolic"
 	"symbolic-execution-course/internal/translator"
 )
@@ -59,6 +61,7 @@ func main() {
 	testRepeatedVariable(translator)
 	testLogicalOperations(translator)
 	testArrayOperations(translator)
+	fmt.Println("\nВсе проверки пройдены.")
 }
 
 func testArithmetic(zt *translator.Z3Translator) {
@@ -78,6 +81,13 @@ func testArithmetic(zt *translator.Z3Translator) {
 		log.Fatalf("Ошибка трансляции арифметики: %v", err)
 	}
 	fmt.Printf("Z3 выражение (%T): %v\n", z3Expr, z3Expr)
+	result, ok := z3Expr.(z3.Int)
+	check("арифметика имеет тип int", expression.Type() == symbolic.IntType && ok)
+	ctx := zt.GetContext().(*z3.Context)
+	xIsFour := ctx.IntConst("x").Eq(ctx.FromInt(4, ctx.IntSort()).(z3.Int))
+	checkSatisfiable(ctx, "x = 4 выполнимо", true, xIsFour)
+	checkSatisfiable(ctx, "при x = 4 выражение (x + 2) * 3 равно 18", false,
+		xIsFour, result.NE(ctx.FromInt(18, ctx.IntSort()).(z3.Int)))
 }
 
 func testRepeatedVariable(zt *translator.Z3Translator) {
@@ -95,6 +105,11 @@ func testRepeatedVariable(zt *translator.Z3Translator) {
 		log.Fatalf("Ошибка трансляции повторной переменной: %v", err)
 	}
 	fmt.Printf("Z3 выражение (%T): %v\n", z3Expr, z3Expr)
+	result, ok := z3Expr.(z3.Int)
+	check("разность имеет тип int", expression.Type() == symbolic.IntType && ok)
+	ctx := zt.GetContext().(*z3.Context)
+	checkSatisfiable(ctx, "разность двух узлов с именем x всегда равна нулю", false,
+		result.NE(ctx.FromInt(0, ctx.IntSort()).(z3.Int)))
 }
 
 func testLogicalOperations(zt *translator.Z3Translator) {
@@ -114,6 +129,25 @@ func testLogicalOperations(zt *translator.Z3Translator) {
 		log.Fatalf("Ошибка трансляции логических операций: %v", err)
 	}
 	fmt.Printf("Z3 выражение (%T): %v\n", z3Expr, z3Expr)
+	result, ok := z3Expr.(z3.Bool)
+	check("логическое выражение имеет тип bool", expression.Type() == symbolic.BoolType && ok)
+	ctx := zt.GetContext().(*z3.Context)
+	cases := []struct {
+		p, q, want bool
+	}{
+		{false, false, false},
+		{false, true, true},
+		{true, false, false},
+		{true, true, false},
+	}
+	for _, tc := range cases {
+		name := fmt.Sprintf("p = %t, q = %t", tc.p, tc.q)
+		pValue := ctx.BoolConst("p").Eq(ctx.FromBool(tc.p))
+		qValue := ctx.BoolConst("q").Eq(ctx.FromBool(tc.q))
+		checkSatisfiable(ctx, name+": значения выполнимы", true, pValue, qValue)
+		checkSatisfiable(ctx, name+fmt.Sprintf(": результат равен %t", tc.want), false,
+			pValue, qValue, result.NE(ctx.FromBool(tc.want)))
+	}
 }
 
 func testArrayOperations(zt *translator.Z3Translator) {
@@ -131,4 +165,31 @@ func testArrayOperations(zt *translator.Z3Translator) {
 		log.Fatalf("Ошибка трансляции массива: %v", err)
 	}
 	fmt.Printf("Z3 выражение (%T): %v\n", z3Expr, z3Expr)
+	result, ok := z3Expr.(z3.Array)
+	check("выражение имеет тип array", expression.Type() == symbolic.ArrayType && ok)
+	domain, element := result.Sort().DomainAndRange()
+	check("индексы массива имеют тип int", domain.Kind() == z3.KindInt)
+	check("элементы массива имеют тип int", element.Kind() == z3.KindInt)
+}
+
+func check(name string, passed bool) {
+	if !passed {
+		log.Fatalf("FAIL: %s", name)
+	}
+	fmt.Printf("PASS: %s\n", name)
+}
+
+func checkSatisfiable(ctx *z3.Context, name string, want bool, constraints ...z3.Bool) {
+	solver := z3.NewSolver(ctx)
+	for _, constraint := range constraints {
+		solver.Assert(constraint)
+	}
+	sat, err := solver.Check()
+	if err != nil {
+		log.Fatalf("FAIL: %s: ошибка solver: %v", name, err)
+	}
+	if sat != want {
+		log.Fatalf("FAIL: %s: ожидалась выполнимость %t, получена %t", name, want, sat)
+	}
+	check(name, true)
 }
