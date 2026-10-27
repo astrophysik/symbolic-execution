@@ -11,6 +11,11 @@ const (
 	// Добавьте другие типы по необходимости
 )
 
+type NestedExpressionType struct {
+	ExprType  ExpressionType
+	InnerType *NestedExpressionType
+}
+
 // String возвращает строковое представление типа
 func (et ExpressionType) String() string {
 	switch et {
