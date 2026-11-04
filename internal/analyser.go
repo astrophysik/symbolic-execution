@@ -69,7 +69,7 @@ func Analyse(source string, functionName string) []Interpreter {
 	analyser := Analyser{
 		Package:      functionSsa.Pkg,
 		StatesQueue:  PriorityQueue{},
-		PathSelector: &DfsPathSelector{},
+		PathSelector: &BfsPathSelector{},
 		Results:      nil,
 		Z3Translator: translator,
 		MaxSteps:     30,

@@ -14,12 +14,20 @@ func main() {
 		panic(err)
 	}
 
-	results := internal.Analyse(string(source), "testMultipleReturns")
+	results := internal.Analyse(string(source), "testBitwise")
 
 	zt := translator.NewZ3Translator()
 	defer zt.Close()
 
 	for i, state := range results {
+		if state.Panicked {
+			fmt.Printf(
+				"Path %d: panic\nConstraints: %s\n\n",
+				i+1,
+				state.PathCondition,
+			)
+			continue
+		}
 		frame := state.CallStack[len(state.CallStack)-1]
 
 		condition, err := zt.TranslateExpression(state.PathCondition)

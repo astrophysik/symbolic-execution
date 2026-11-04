@@ -37,6 +37,7 @@ type Interpreter struct {
 	PathCondition symbolic.SymbolicExpression
 	Heap          memory.Memory
 	Finished      bool
+	Panicked      bool
 }
 
 type CallStackFrame struct {
@@ -174,6 +175,23 @@ func (interpreter *Interpreter) interpretDynamically(element ssa.Instruction) []
 		frame.PreviousBlock = frame.CurrentBlock
 		frame.CurrentBlock = frame.CurrentBlock.Succs[0]
 		frame.InstrIdx = 0
+
+		return []Interpreter{*interpreter}
+	case *ssa.MakeInterface:
+		for _, use := range *instruction.Referrers() {
+			if _, ok := use.(*ssa.Panic); !ok {
+				panic("interface values are supported only as panic arguments")
+			}
+		}
+
+		frame.InstrIdx++
+		return []Interpreter{*interpreter}
+	case *ssa.Panic:
+		interpreter.Panicked = true
+		interpreter.Finished = true
+
+		frame.ReturnValue = nil
+		frame.InstrIdx++
 
 		return []Interpreter{*interpreter}
 	case *ssa.Return:
