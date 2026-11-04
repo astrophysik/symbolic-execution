@@ -33,6 +33,10 @@ func toSymbolicType(t types.Type) symbolic.NestedExpressionType {
 			return symbolic.NestedExpressionType{
 				ExprType: symbolic.IntType,
 			}
+		case t.Kind() == types.Float64, t.Kind() == types.Float32:
+			return symbolic.NestedExpressionType{
+				ExprType: symbolic.FloatType,
+			}
 		default:
 			panic(fmt.Sprintf("unsupported basic type: %s", t))
 		}
@@ -68,7 +72,7 @@ func Analyse(source string, functionName string) []Interpreter {
 		PathSelector: &DfsPathSelector{},
 		Results:      nil,
 		Z3Translator: translator,
-		MaxSteps:     1000,
+		MaxSteps:     30,
 	}
 
 	heap.Init(&analyser.StatesQueue)
@@ -130,11 +134,19 @@ func (a *Analyser) runAnalysis() {
 			}
 
 			heap.Push(&a.StatesQueue, &Item{
-				value: nextState,
+				value:    nextState,
 				priority: a.PathSelector.CalculatePriority(nextState),
-			} )
+			})
 
 		}
+	}
+
+	if a.StatesQueue.Len() > 0 {
+		fmt.Printf(
+			"Analys was stopped after %d steps. Left states %d\n",
+			a.StepCount,
+			a.StatesQueue.Len(),
+		)
 	}
 
 }
