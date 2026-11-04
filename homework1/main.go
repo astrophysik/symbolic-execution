@@ -4,8 +4,10 @@ package main
 import (
 	"fmt"
 	"log"
+	
 
-	"symbolic-execution-course/internal/ssa"
+	ssainternal "symbolic-execution-course/internal/ssa"
+	"golang.org/x/tools/go/ssa"
 )
 
 func main() {
@@ -25,12 +27,27 @@ func testFunction(x int) int {
 `
 
 	// Создаём builder для SSA
-	builder := ssa.NewBuilder()
+	builder := ssainternal.NewBuilder()
 
 	// Строим SSA из исходного кода
 	graph, err := builder.ParseAndBuildSSA(source, "testFunction")
 	if err != nil {
 		log.Fatalf("Ошибка построения SSA: %v", err)
 	}
+
+	for _, basicBlock := range graph.DomPreorder() {
+		fmt.Printf("Basic Block : %d\n", basicBlock.Index)
+		for _, instruction := range basicBlock.Instrs {
+			fmt.Println(instruction.String())
+			value, ok := instruction.(ssa.Value)
+			if ok == true {
+				fmt.Printf("	with value %s\n", value.Name())
+				
+			}
+		}
+	}
+
+
+	graph.DomPreorder()
 	fmt.Printf("CFG построен для функции с %d блоками\n", len(graph.Blocks))
 }

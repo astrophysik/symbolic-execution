@@ -1,7 +1,10 @@
 // Package symbolic содержит конкретные реализации символьных выражений
 package symbolic
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // SymbolicExpression - базовый интерфейс для всех символьных выражений
 type SymbolicExpression interface {
@@ -18,20 +21,23 @@ type SymbolicExpression interface {
 // SymbolicVariable представляет символьную переменную
 type SymbolicVariable struct {
 	Name     string
-	ExprType ExpressionType
+	TypeInfo NestedExpressionType
 }
 
 // NewSymbolicVariable создаёт новую символьную переменную
 func NewSymbolicVariable(name string, exprType ExpressionType) *SymbolicVariable {
 	return &SymbolicVariable{
-		Name:     name,
-		ExprType: exprType,
+		Name: name,
+		TypeInfo: NestedExpressionType{
+			ExprType:  exprType,
+			InnerType: nil,
+		},
 	}
 }
 
 // Type возвращает тип переменной
 func (sv *SymbolicVariable) Type() ExpressionType {
-	return sv.ExprType
+	return sv.TypeInfo.ExprType
 }
 
 // String возвращает строковое представление переменной
@@ -105,24 +111,96 @@ type BinaryOperation struct {
 
 // NewBinaryOperation создаёт новую бинарную операцию
 func NewBinaryOperation(left, right SymbolicExpression, op BinaryOperator) *BinaryOperation {
-	// TODO: Реализовать
-	// Создать новую бинарную операцию и проверить совместимость типов
-	panic("не реализовано")
+	if left.Type() != right.Type() {
+		panic("Types mismatched")
+	}
+
+	return &BinaryOperation{
+		Left:     left,
+		Right:    right,
+		Operator: op,
+	}
 }
 
 // Type возвращает результирующий тип операции
 func (bo *BinaryOperation) Type() ExpressionType {
-	// TODO: Реализовать
-	// Определить результирующий тип на основе операции и типов операндов
-	// Например: int + int = int, int < int = bool
-	panic("не реализовано")
+	switch bo.Operator {
+	case ADD:
+		if bo.Left.Type() == IntType {
+			return IntType
+		} else {
+			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation ADD", bo.Left.Type().String())
+			panic(errorMessage)
+		}
+	case SUB:
+		if bo.Left.Type() == IntType {
+			return IntType
+		} else {
+			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation SUB", bo.Left.Type().String())
+			panic(errorMessage)
+		}
+	case MUL:
+		if bo.Left.Type() == IntType {
+			return IntType
+		} else {
+			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation MUL", bo.Left.Type().String())
+			panic(errorMessage)
+		}
+	case DIV:
+		if bo.Left.Type() == IntType {
+			return IntType
+		} else {
+			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation DIV", bo.Left.Type().String())
+			panic(errorMessage)
+		}
+	case MOD:
+		if bo.Left.Type() == IntType {
+			return IntType
+		} else {
+			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation MOD", bo.Left.Type().String())
+			panic(errorMessage)
+		}
+	case EQ:
+		return BoolType
+	case NE:
+		return BoolType
+	case LT:
+		if bo.Left.Type() != ArrayType {
+			return BoolType
+		} else {
+			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation EQ", bo.Left.Type().String())
+			panic(errorMessage)
+		}
+	case LE:
+		if bo.Left.Type() != ArrayType {
+			return BoolType
+		} else {
+			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation EQ", bo.Left.Type().String())
+			panic(errorMessage)
+		}
+	case GT:
+		if bo.Left.Type() != ArrayType {
+			return BoolType
+		} else {
+			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation EQ", bo.Left.Type().String())
+			panic(errorMessage)
+		}
+	case GE:
+		if bo.Left.Type() != ArrayType {
+			return BoolType
+		} else {
+			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation EQ", bo.Left.Type().String())
+			panic(errorMessage)
+		}
+	default:
+		errorMessage := fmt.Sprintf("Unknown binary type %s", bo.Operator.String())
+		panic(errorMessage)
+	}
 }
 
 // String возвращает строковое представление операции
 func (bo *BinaryOperation) String() string {
-	// TODO: Реализовать
-	// Формат: "(left operator right)"
-	panic("не реализовано")
+	return "(" + bo.Left.String() + " " + bo.Operator.String() + " " + bo.Right.String() + ")"
 }
 
 // Accept реализует Visitor pattern
@@ -140,9 +218,15 @@ type LogicalOperation struct {
 
 // NewLogicalOperation создаёт новую логическую операцию
 func NewLogicalOperation(operands []SymbolicExpression, op LogicalOperator) *LogicalOperation {
-	// TODO: Реализовать
-	// Создать логическую операцию и проверить типы операндов
-	panic("не реализовано")
+	for _, operand := range operands {
+		if operand.Type() != BoolType {
+			panic("non bool type operand in logic operation")
+		}
+	}
+	return &LogicalOperation{
+		Operands: operands,
+		Operator: op,
+	}
 }
 
 // Type возвращает тип логической операции (всегда bool)
@@ -152,11 +236,28 @@ func (lo *LogicalOperation) Type() ExpressionType {
 
 // String возвращает строковое представление логической операции
 func (lo *LogicalOperation) String() string {
-	// TODO: Реализовать
-	// Для NOT: "!operand"
-	// Для AND/OR: "(operand1 && operand2 && ...)"
-	// Для IMPLIES: "(operand1 => operand2)"
-	panic("не реализовано")
+	switch lo.Operator {
+	case AND:
+		stringOperands := []string{}
+		for _, v := range lo.Operands {
+			stringOperands = append(stringOperands, v.String())
+		}
+		view := strings.Join(stringOperands, " && ")
+		return "(" + view + ")"
+	case OR:
+		stringOperands := []string{}
+		for _, v := range lo.Operands {
+			stringOperands = append(stringOperands, v.String())
+		}
+		view := strings.Join(stringOperands, " || ")
+		return "(" + view + ")"
+	case NOT:
+		return "!" + lo.Operands[0].String()
+	case IMPLIES:
+		return "(" + lo.Operands[0].String() + " => " + lo.Operands[1].String() + ")"
+	default:
+		panic("Unknown logic operation")
+	}
 }
 
 // Accept реализует Visitor pattern
