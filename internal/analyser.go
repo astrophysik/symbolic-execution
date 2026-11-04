@@ -33,7 +33,7 @@ func toSymbolicType(t types.Type) symbolic.NestedExpressionType {
 			return symbolic.NestedExpressionType{
 				ExprType: symbolic.IntType,
 			}
-		case t.Kind() == types.Float64, t.Kind() == types.Float32:
+		case t.Kind() == types.Float64:
 			return symbolic.NestedExpressionType{
 				ExprType: symbolic.FloatType,
 			}

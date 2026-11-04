@@ -200,6 +200,33 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 		default:
 			panic("unsupported type for mod")
 		}
+	case symbolic.BIT_AND, symbolic.BIT_OR, symbolic.BIT_XOR,
+		symbolic.SHL, symbolic.SHR:
+
+		if expr.Left.Type() != symbolic.IntType ||
+			expr.Right.Type() != symbolic.IntType {
+			panic("bitwise operations require integer operands")
+		}
+
+		const bitWidth = 64
+		l := left.(z3.Int).ToBV(bitWidth)
+		r := right.(z3.Int).ToBV(bitWidth)
+
+		var result z3.BV
+		switch expr.Operator {
+		case symbolic.BIT_AND:
+			result = l.And(r)
+		case symbolic.BIT_OR:
+			result = l.Or(r)
+		case symbolic.BIT_XOR:
+			result = l.Xor(r)
+		case symbolic.SHL:
+			result = l.Lsh(r)
+		case symbolic.SHR:
+			result = l.SRsh(r)
+		}
+
+		return result.SToInt()
 	default:
 		panic("unsupported binary operation")
 	}
