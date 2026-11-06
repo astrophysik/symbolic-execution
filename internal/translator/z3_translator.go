@@ -22,6 +22,8 @@ func ExpressionToSort(zt *Z3Translator, typeInfo symbolic.NestedExpressionType) 
 		return zt.ctx.BoolSort()
 	case symbolic.ArrayType:
 		return zt.ctx.ArraySort(zt.ctx.IntSort(), ExpressionToSort(zt, *typeInfo.InnerType))
+	case symbolic.FloatType:
+		return zt.ctx.FloatSort(11, 53)
 	default:
 		panic("unknown symbolic expression type")
 	}
@@ -82,6 +84,10 @@ func (zt *Z3Translator) VisitBoolConstant(expr *symbolic.BoolConstant) interface
 	return zt.ctx.FromBool(expr.Value)
 }
 
+func (zt *Z3Translator) VisitFloatConstant(expr *symbolic.FloatConstant) interface{} {
+	return zt.ctx.FromFloat64(expr.Value, zt.ctx.FloatSort(11, 53))
+}
+
 // VisitBinaryOperation транслирует бинарную операцию в Z3
 func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) interface{} {
 
@@ -93,6 +99,8 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 		switch expr.Left.Type() {
 		case symbolic.IntType:
 			return left.(z3.Int).Add(right.(z3.Int))
+		case symbolic.FloatType:
+			return left.(z3.Float).Add(right.(z3.Float))
 		default:
 			panic("unsupported type for add")
 		}
@@ -100,6 +108,8 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 		switch expr.Left.Type() {
 		case symbolic.IntType:
 			return left.(z3.Int).Sub(right.(z3.Int))
+		case symbolic.FloatType:
+			return left.(z3.Float).Sub(right.(z3.Float))
 		default:
 			panic("unsupported type for sub")
 		}
@@ -107,6 +117,8 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 		switch expr.Left.Type() {
 		case symbolic.IntType:
 			return left.(z3.Int).Mul(right.(z3.Int))
+		case symbolic.FloatType:
+			return left.(z3.Float).Mul(right.(z3.Float))
 		default:
 			panic("unsupported type for mul")
 		}
@@ -114,6 +126,8 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 		switch expr.Left.Type() {
 		case symbolic.IntType:
 			return left.(z3.Int).Div(right.(z3.Int))
+		case symbolic.FloatType:
+			return left.(z3.Float).Div(right.(z3.Float))
 		default:
 			panic("unsupported type for div")
 		}
@@ -125,6 +139,8 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 			return left.(z3.Bool).Eq(right.(z3.Bool))
 		case symbolic.ArrayType:
 			return left.(z3.Array).Eq(right.(z3.Array))
+		case symbolic.FloatType:
+			return left.(z3.Float).IEEEEq(right.(z3.Float))
 		default:
 			panic("unsupported type for eq")
 		}
@@ -136,6 +152,8 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 			return left.(z3.Bool).NE(right.(z3.Bool))
 		case symbolic.ArrayType:
 			return left.(z3.Array).NE(right.(z3.Array))
+		case symbolic.FloatType:
+			return left.(z3.Float).IEEEEq(right.(z3.Float)).Not()
 		default:
 			panic("unsupported type for ne")
 		}
@@ -143,6 +161,8 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 		switch expr.Left.Type() {
 		case symbolic.IntType:
 			return left.(z3.Int).LT(right.(z3.Int))
+		case symbolic.FloatType:
+			return left.(z3.Float).LT(right.(z3.Float))
 		default:
 			panic("unsupported type for lt")
 		}
@@ -150,6 +170,8 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 		switch expr.Left.Type() {
 		case symbolic.IntType:
 			return left.(z3.Int).LE(right.(z3.Int))
+		case symbolic.FloatType:
+			return left.(z3.Float).LE(right.(z3.Float))
 		default:
 			panic("unsupported type for le")
 		}
@@ -157,6 +179,8 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 		switch expr.Left.Type() {
 		case symbolic.IntType:
 			return left.(z3.Int).GT(right.(z3.Int))
+		case symbolic.FloatType:
+			return left.(z3.Float).GT(right.(z3.Float))
 		default:
 			panic("unsupported type for gt")
 		}
@@ -164,6 +188,8 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 		switch expr.Left.Type() {
 		case symbolic.IntType:
 			return left.(z3.Int).GE(right.(z3.Int))
+		case symbolic.FloatType:
+			return left.(z3.Float).GE(right.(z3.Float))
 		default:
 			panic("unsupported type for ge")
 		}
@@ -174,6 +200,33 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 		default:
 			panic("unsupported type for mod")
 		}
+	case symbolic.BIT_AND, symbolic.BIT_OR, symbolic.BIT_XOR,
+		symbolic.SHL, symbolic.SHR:
+
+		if expr.Left.Type() != symbolic.IntType ||
+			expr.Right.Type() != symbolic.IntType {
+			panic("bitwise operations require integer operands")
+		}
+
+		const bitWidth = 64
+		l := left.(z3.Int).ToBV(bitWidth)
+		r := right.(z3.Int).ToBV(bitWidth)
+
+		var result z3.BV
+		switch expr.Operator {
+		case symbolic.BIT_AND:
+			result = l.And(r)
+		case symbolic.BIT_OR:
+			result = l.Or(r)
+		case symbolic.BIT_XOR:
+			result = l.Xor(r)
+		case symbolic.SHL:
+			result = l.Lsh(r)
+		case symbolic.SHR:
+			result = l.SRsh(r)
+		}
+
+		return result.SToInt()
 	default:
 		panic("unsupported binary operation")
 	}

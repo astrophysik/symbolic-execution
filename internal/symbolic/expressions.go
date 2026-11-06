@@ -100,6 +100,26 @@ func (bc *BoolConstant) Accept(visitor Visitor) interface{} {
 	return visitor.VisitBoolConstant(bc)
 }
 
+type FloatConstant struct {
+	Value float64
+}
+
+func NewFloatConstant(value float64) *FloatConstant {
+	return &FloatConstant{Value: value}
+}
+
+func (fc *FloatConstant) Type() ExpressionType {
+	return FloatType
+}
+
+func (fc *FloatConstant) String() string {
+	return fmt.Sprintf("%g", fc.Value)
+}
+
+func (fc *FloatConstant) Accept(visitor Visitor) interface{} {
+	return visitor.VisitFloatConstant(fc)
+}
+
 // BinaryOperation представляет бинарную операцию
 type BinaryOperation struct {
 	Left     SymbolicExpression
@@ -125,73 +145,32 @@ func NewBinaryOperation(left, right SymbolicExpression, op BinaryOperator) *Bina
 // Type возвращает результирующий тип операции
 func (bo *BinaryOperation) Type() ExpressionType {
 	switch bo.Operator {
-	case ADD:
-		if bo.Left.Type() == IntType {
-			return IntType
-		} else {
-			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation ADD", bo.Left.Type().String())
-			panic(errorMessage)
+	case ADD, SUB, MUL, DIV:
+		operandType := bo.Left.Type()
+		if operandType != IntType && operandType != FloatType {
+			panic("arithmetic operations require numeric operands")
 		}
-	case SUB:
-		if bo.Left.Type() == IntType {
-			return IntType
-		} else {
-			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation SUB", bo.Left.Type().String())
-			panic(errorMessage)
-		}
-	case MUL:
-		if bo.Left.Type() == IntType {
-			return IntType
-		} else {
-			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation MUL", bo.Left.Type().String())
-			panic(errorMessage)
-		}
-	case DIV:
-		if bo.Left.Type() == IntType {
-			return IntType
-		} else {
-			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation DIV", bo.Left.Type().String())
-			panic(errorMessage)
-		}
+		return operandType
 	case MOD:
 		if bo.Left.Type() == IntType {
 			return IntType
 		} else {
-			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation MOD", bo.Left.Type().String())
+			errorMessage := fmt.Sprintf("Unexpected type %s in integer binary operation", bo.Left.Type().String())
 			panic(errorMessage)
 		}
-	case EQ:
+	case EQ, NE:
 		return BoolType
-	case NE:
+	case LT, LE, GT, GE:
+		operandType := bo.Left.Type()
+		if operandType != IntType && operandType != FloatType {
+			panic("ordered comparisons require numeric operands")
+		}
 		return BoolType
-	case LT:
-		if bo.Left.Type() != ArrayType {
-			return BoolType
-		} else {
-			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation EQ", bo.Left.Type().String())
-			panic(errorMessage)
+	case BIT_AND, BIT_OR, BIT_XOR, SHL, SHR:
+		if bo.Left.Type() != IntType || bo.Right.Type() != IntType {
+			panic("bitwise operations require integer operands")
 		}
-	case LE:
-		if bo.Left.Type() != ArrayType {
-			return BoolType
-		} else {
-			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation EQ", bo.Left.Type().String())
-			panic(errorMessage)
-		}
-	case GT:
-		if bo.Left.Type() != ArrayType {
-			return BoolType
-		} else {
-			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation EQ", bo.Left.Type().String())
-			panic(errorMessage)
-		}
-	case GE:
-		if bo.Left.Type() != ArrayType {
-			return BoolType
-		} else {
-			errorMessage := fmt.Sprintf("Unexpected type %s in binary operation EQ", bo.Left.Type().String())
-			panic(errorMessage)
-		}
+		return IntType
 	default:
 		errorMessage := fmt.Sprintf("Unknown binary type %s", bo.Operator.String())
 		panic(errorMessage)
@@ -283,6 +262,13 @@ const (
 	LE // меньше или равно
 	GT // больше
 	GE // больше или равно
+
+	// Bit operations
+	BIT_AND
+	BIT_OR
+	BIT_XOR
+	SHL
+	SHR
 )
 
 // String возвращает строковое представление оператора
@@ -310,6 +296,16 @@ func (op BinaryOperator) String() string {
 		return ">"
 	case GE:
 		return ">="
+	case BIT_AND:
+		return "&"
+	case BIT_OR:
+		return "|"
+	case BIT_XOR:
+		return "^"
+	case SHL:
+		return "<<"
+	case SHR:
+		return ">>"
 	default:
 		return "unknown"
 	}
