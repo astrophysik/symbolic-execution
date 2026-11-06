@@ -3,6 +3,7 @@ package symbolic
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -10,6 +11,9 @@ import (
 type SymbolicExpression interface {
 	// Type возвращает тип выражения
 	Type() ExpressionType
+
+	// GetTypeInfo возвращает полный тип выражения, включая вложенные массивы.
+	GetTypeInfo() NestedExpressionType
 
 	// String возвращает строковое представление выражения
 	String() string
@@ -40,6 +44,10 @@ func (sv *SymbolicVariable) Type() ExpressionType {
 	return sv.TypeInfo.ExprType
 }
 
+func (sv *SymbolicVariable) GetTypeInfo() NestedExpressionType {
+	return sv.TypeInfo
+}
+
 // String возвращает строковое представление переменной
 func (sv *SymbolicVariable) String() string {
 	return sv.Name
@@ -63,6 +71,10 @@ func NewIntConstant(value int64) *IntConstant {
 // Type возвращает тип константы
 func (ic *IntConstant) Type() ExpressionType {
 	return IntType
+}
+
+func (ic *IntConstant) GetTypeInfo() NestedExpressionType {
+	return NestedExpressionType{ExprType: ic.Type()}
 }
 
 // String возвращает строковое представление константы
@@ -90,6 +102,10 @@ func (bc *BoolConstant) Type() ExpressionType {
 	return BoolType
 }
 
+func (bc *BoolConstant) GetTypeInfo() NestedExpressionType {
+	return NestedExpressionType{ExprType: bc.Type()}
+}
+
 // String возвращает строковое представление константы
 func (bc *BoolConstant) String() string {
 	return fmt.Sprintf("%t", bc.Value)
@@ -110,6 +126,10 @@ func NewFloatConstant(value float64) *FloatConstant {
 
 func (fc *FloatConstant) Type() ExpressionType {
 	return FloatType
+}
+
+func (fc *FloatConstant) GetTypeInfo() NestedExpressionType {
+	return NestedExpressionType{ExprType: fc.Type()}
 }
 
 func (fc *FloatConstant) String() string {
@@ -177,6 +197,10 @@ func (bo *BinaryOperation) Type() ExpressionType {
 	}
 }
 
+func (bo *BinaryOperation) GetTypeInfo() NestedExpressionType {
+	return NestedExpressionType{ExprType: bo.Type()}
+}
+
 // String возвращает строковое представление операции
 func (bo *BinaryOperation) String() string {
 	return "(" + bo.Left.String() + " " + bo.Operator.String() + " " + bo.Right.String() + ")"
@@ -211,6 +235,10 @@ func NewLogicalOperation(operands []SymbolicExpression, op LogicalOperator) *Log
 // Type возвращает тип логической операции (всегда bool)
 func (lo *LogicalOperation) Type() ExpressionType {
 	return BoolType
+}
+
+func (lo *LogicalOperation) GetTypeInfo() NestedExpressionType {
+	return NestedExpressionType{ExprType: lo.Type()}
 }
 
 // String возвращает строковое представление логической операции
@@ -338,19 +366,147 @@ func (op LogicalOperator) String() string {
 }
 
 type Ref struct {
-	// TODO: Выбрать и написать внутреннее представление символьной ссылки
+	Address     SymbolicExpression
+	FieldTypes  []ExpressionType
+	ElementType ExpressionType
+}
+
+func NewStructRef(address SymbolicExpression, fieldTypes ...ExpressionType) *Ref {
+	if address.Type() != IntType && address.Type() != RefType {
+		panic("reference address must be an integer or reference")
+	}
+	return &Ref{Address: address, FieldTypes: append([]ExpressionType{}, fieldTypes...)}
+}
+
+func NewArrayRef(address SymbolicExpression, elementType ExpressionType) *Ref {
+	if address.Type() != IntType && address.Type() != RefType {
+		panic("reference address must be an integer or reference")
+	}
+	return &Ref{Address: address, ElementType: elementType}
 }
 
 func (ref *Ref) Type() ExpressionType {
-	panic("не реализовано")
+	return RefType
+}
+
+func (ref *Ref) GetTypeInfo() NestedExpressionType {
+	return NestedExpressionType{ExprType: ref.Type()}
 }
 
 func (ref *Ref) String() string {
-	panic("не реализовано")
+	return "ref(" + ref.Address.String() + ")"
 }
 
 func (ref *Ref) Accept(visitor Visitor) interface{} {
-	panic("не реализовано")
+	return visitor.VisitRef(ref)
+}
+
+type StringConstant struct {
+	Value string
+}
+
+func NewStringConstant(value string) *StringConstant {
+	return &StringConstant{Value: value}
+}
+
+func (s *StringConstant) Type() ExpressionType {
+	return StringType
+}
+
+func (s *StringConstant) GetTypeInfo() NestedExpressionType {
+	return NestedExpressionType{ExprType: s.Type()}
+}
+
+func (s *StringConstant) String() string {
+	return strconv.Quote(s.Value)
+}
+
+func (s *StringConstant) Accept(v Visitor) interface{} {
+	return v.VisitStringConstant(s)
+}
+
+type ArrayConstant struct {
+	Value    SymbolicExpression
+	TypeInfo NestedExpressionType
+}
+
+func NewArrayConstant(value SymbolicExpression) *ArrayConstant {
+	inner := value.GetTypeInfo()
+	return &ArrayConstant{Value: value, TypeInfo: NestedExpressionType{ExprType: ArrayType, InnerType: &inner}}
+}
+
+func (a *ArrayConstant) Type() ExpressionType {
+	return ArrayType
+}
+
+func (a *ArrayConstant) GetTypeInfo() NestedExpressionType {
+	return a.TypeInfo
+}
+
+func (a *ArrayConstant) String() string {
+	return "const-array(" + a.Value.String() + ")"
+}
+
+func (a *ArrayConstant) Accept(v Visitor) interface{} {
+	return v.VisitArrayConstant(a)
+}
+
+type ArraySelect struct {
+	Array, Index SymbolicExpression
+	TypeInfo     NestedExpressionType
+}
+
+func NewArraySelect(array, index SymbolicExpression) *ArraySelect {
+	info := array.GetTypeInfo()
+	if info.ExprType != ArrayType || info.InnerType == nil || (index.Type() != IntType && index.Type() != RefType) {
+		panic("invalid array select")
+	}
+	return &ArraySelect{Array: array, Index: index, TypeInfo: *info.InnerType}
+}
+func (a *ArraySelect) Type() ExpressionType {
+	return a.TypeInfo.ExprType
+}
+
+func (a *ArraySelect) GetTypeInfo() NestedExpressionType {
+	return a.TypeInfo
+}
+
+func (a *ArraySelect) String() string {
+	return a.Array.String() + "[" + a.Index.String() + "]"
+}
+
+func (a *ArraySelect) Accept(v Visitor) interface{} {
+	return v.VisitArraySelect(a)
+}
+
+type ArrayStore struct {
+	Array, Index, Value SymbolicExpression
+	TypeInfo            NestedExpressionType
+}
+
+func NewArrayStore(array, index, value SymbolicExpression) *ArrayStore {
+	info := array.GetTypeInfo()
+	if info.ExprType != ArrayType || info.InnerType == nil ||
+		(index.Type() != IntType && index.Type() != RefType) || !info.InnerType.Equals(value.GetTypeInfo()) {
+		panic("invalid array store")
+	}
+	return &ArrayStore{Array: array, Index: index, Value: value, TypeInfo: info}
+}
+
+func (a *ArrayStore) Type() ExpressionType {
+	return ArrayType
+}
+
+func (a *ArrayStore) GetTypeInfo() NestedExpressionType {
+	return a.TypeInfo
+}
+
+func (a *ArrayStore) String() string {
+	return "store(" + a.Array.String() + ", " + a.Index.String() + ", " + a.Value.String() + ")"
+}
+
+func (a *ArrayStore) Accept(v Visitor) interface{} {
+	return v.VisitArrayStore(a)
 }
 
 // TODO: Добавьте дополнительные типы выражений по необходимости:
