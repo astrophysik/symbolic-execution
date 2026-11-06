@@ -16,8 +16,10 @@ type Z3Translator struct {
 
 func ExpressionToSort(zt *Z3Translator, typeInfo symbolic.NestedExpressionType) z3.Sort {
 	switch typeInfo.ExprType {
-	case symbolic.IntType:
+	case symbolic.IntType, symbolic.RefType:
 		return zt.ctx.IntSort()
+	case symbolic.StringType:
+		return zt.ctx.ArraySort(zt.ctx.IntSort(), zt.ctx.IntSort())
 	case symbolic.BoolType:
 		return zt.ctx.BoolSort()
 	case symbolic.ArrayType:
@@ -133,11 +135,11 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 		}
 	case symbolic.EQ:
 		switch expr.Left.Type() {
-		case symbolic.IntType:
+		case symbolic.IntType, symbolic.RefType:
 			return left.(z3.Int).Eq(right.(z3.Int))
 		case symbolic.BoolType:
 			return left.(z3.Bool).Eq(right.(z3.Bool))
-		case symbolic.ArrayType:
+		case symbolic.ArrayType, symbolic.StringType:
 			return left.(z3.Array).Eq(right.(z3.Array))
 		case symbolic.FloatType:
 			return left.(z3.Float).IEEEEq(right.(z3.Float))
@@ -146,11 +148,11 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 		}
 	case symbolic.NE:
 		switch expr.Left.Type() {
-		case symbolic.IntType:
+		case symbolic.IntType, symbolic.RefType:
 			return left.(z3.Int).NE(right.(z3.Int))
 		case symbolic.BoolType:
 			return left.(z3.Bool).NE(right.(z3.Bool))
-		case symbolic.ArrayType:
+		case symbolic.ArrayType, symbolic.StringType:
 			return left.(z3.Array).NE(right.(z3.Array))
 		case symbolic.FloatType:
 			return left.(z3.Float).IEEEEq(right.(z3.Float)).Not()
@@ -273,4 +275,33 @@ func (zt *Z3Translator) castToZ3Type(value interface{}, targetType symbolic.Expr
 	default:
 		panic("Unknown type in cast")
 	}
+}
+
+func (zt *Z3Translator) VisitRef(expr *symbolic.Ref) interface{} {
+	return expr.Address.Accept(zt)
+}
+
+func (zt *Z3Translator) VisitStringConstant(expr *symbolic.StringConstant) interface{} {
+	to_z3_integer := func(n int64) z3.Value { return zt.ctx.FromInt(n, zt.ctx.IntSort()) }
+
+	result := zt.ctx.ConstArray(zt.ctx.IntSort(), to_z3_integer(0))
+
+	// str[-1] = strlen
+	result = result.Store(to_z3_integer(-1), to_z3_integer(int64(len(expr.Value))))
+	for i := 0; i < len(expr.Value); i++ {
+		result = result.Store(to_z3_integer(int64(i)), to_z3_integer(int64(expr.Value[i])))
+	}
+	return result
+}
+
+func (zt *Z3Translator) VisitArrayConstant(expr *symbolic.ArrayConstant) interface{} {
+	return zt.ctx.ConstArray(zt.ctx.IntSort(), expr.Value.Accept(zt).(z3.Value))
+}
+
+func (zt *Z3Translator) VisitArraySelect(expr *symbolic.ArraySelect) interface{} {
+	return expr.Array.Accept(zt).(z3.Array).Select(expr.Index.Accept(zt).(z3.Value))
+}
+
+func (zt *Z3Translator) VisitArrayStore(expr *symbolic.ArrayStore) interface{} {
+	return expr.Array.Accept(zt).(z3.Array).Store(expr.Index.Accept(zt).(z3.Value), expr.Value.Accept(zt).(z3.Value))
 }

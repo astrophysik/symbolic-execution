@@ -7,7 +7,7 @@ import (
 
 func main() {
 	var mem = memory.NewSymbolicMemory()
-	var array = mem.Allocate(symbolic.ArrayType)
+	var array = mem.AllocateArray(symbolic.IntType)
 
 	mem.AssignToArray(array, 5, symbolic.NewIntConstant(10))
 
