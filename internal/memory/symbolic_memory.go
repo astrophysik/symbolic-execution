@@ -5,6 +5,15 @@ import (
 	"symbolic-execution-course/internal/symbolic"
 )
 
+/*
+ В данной реализации массив создаётся не под конкретное поле у конкретной структуры.
+ Вместо этого, идентификатором массива является тип поля и его позиция.
+ Впрочем, это может приводить к дополнительным записям/чтениям для структур,
+ у которых на одной позиции стоит поле с одинаковым типом
+ 
+ У struct Foo {a int} и struct Bar {b int} для полей a и b будет использован один SMT-массив
+*/
+
 type Memory interface {
 	Allocate(tpe symbolic.ExpressionType) *symbolic.Ref
 	AssignValue(ref *symbolic.Ref, value symbolic.SymbolicExpression)
