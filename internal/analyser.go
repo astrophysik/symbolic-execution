@@ -119,10 +119,6 @@ func (a *Analyser) runAnalysis() {
 			panic("active state has no current block")
 		}
 
-		if frame.InstrIdx < 0 || frame.InstrIdx >= len(frame.CurrentBlock.Instrs) {
-			panic("instruction index out of bounds")
-		}
-
 		instruction := frame.CurrentBlock.Instrs[frame.InstrIdx]
 		a.StepCount++
 		nextStates := state.interpretDynamically(instruction)

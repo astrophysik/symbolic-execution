@@ -70,9 +70,7 @@ func (interpreter *Interpreter) interpretDynamically(element ssa.Instruction) []
 	case *ssa.BinOp:
 		operator, ok := binaryOperators[instruction.Op]
 		if !ok {
-			panic(fmt.Sprintf(
-				"unsupported binary operator: %s", instruction.Op,
-			))
+			panic(fmt.Sprintf("unsupported binary operator: %s", instruction.Op))
 		}
 		frame.LocalMemory[instruction.Name()] = symbolic.NewBinaryOperation(
 			interpreter.resolveExpression(instruction.X),
@@ -102,9 +100,7 @@ func (interpreter *Interpreter) interpretDynamically(element ssa.Instruction) []
 			)
 
 		default:
-			panic(fmt.Sprintf(
-				"unsupported unary operator: %s", instruction.Op,
-			))
+			panic(fmt.Sprintf("unsupported unary operator: %s", instruction.Op))
 		}
 
 		frame.LocalMemory[instruction.Name()] = result
@@ -178,6 +174,7 @@ func (interpreter *Interpreter) interpretDynamically(element ssa.Instruction) []
 
 		return []Interpreter{*interpreter}
 	case *ssa.MakeInterface:
+		// For panic only
 		for _, use := range *instruction.Referrers() {
 			if _, ok := use.(*ssa.Panic); !ok {
 				panic("interface values are supported only as panic arguments")
@@ -216,7 +213,6 @@ func (interpreter *Interpreter) resolveExpression(value ssa.Value) symbolic.Symb
 	switch value := value.(type) {
 	case *ssa.Parameter, *ssa.BinOp, *ssa.UnOp, *ssa.Phi:
 		frame := &interpreter.CallStack[len(interpreter.CallStack)-1]
-
 		expression, ok := frame.LocalMemory[value.Name()]
 		if !ok {
 			panic(fmt.Sprintf("name %q not found", value.Name()))
@@ -234,25 +230,17 @@ func (interpreter *Interpreter) resolveExpression(value ssa.Value) symbolic.Symb
 
 		switch {
 		case basic.Info()&types.IsInteger != 0:
-			number, exact := constant.Int64Val(
-				constant.ToInt(value.Value),
-			)
+			number, exact := constant.Int64Val(constant.ToInt(value.Value))
 			if !exact {
-				panic(fmt.Sprintf(
-					"integer constant does not fit int64: %s", value,
-				))
+				panic(fmt.Sprintf("integer constant does not fit int64: %s", value))
 			}
 			return symbolic.NewIntConstant(number)
 
 		case basic.Info()&types.IsBoolean != 0:
-			return symbolic.NewBoolConstant(
-				constant.BoolVal(value.Value),
-			)
+			return symbolic.NewBoolConstant(constant.BoolVal(value.Value))
 
 		case basic.Kind() == types.Float64:
-			number, _ := constant.Float64Val(
-				constant.ToFloat(value.Value),
-			)
+			number, _ := constant.Float64Val(constant.ToFloat(value.Value))
 			return symbolic.NewFloatConstant(number)
 
 		default:
