@@ -1,19 +1,52 @@
 package main
 
 import (
-	"symbolic-execution-course/internal/memory"
-	"symbolic-execution-course/internal/symbolic"
+	"fmt"
+	"os"
+
+	"symbolic-execution-course/internal"
+	"symbolic-execution-course/internal/translator"
 )
 
 func main() {
-	var mem = memory.NewSymbolicMemory()
-	var array = mem.Allocate(symbolic.ArrayType)
+	source, err := os.ReadFile("homework4/examples/test_functions.go")
+	if err != nil {
+		panic(err)
+	}
 
-	mem.AssignToArray(array, 5, symbolic.NewIntConstant(10))
+	results := internal.Analyse(string(source), "testBitwise")
 
-	var fromArray = mem.GetFromArray(array, 5)
-	println(fromArray)
+	zt := translator.NewZ3Translator()
+	defer zt.Close()
 
-	var anotherFromArray = mem.GetFromArray(array, 10)
-	println(anotherFromArray)
+	for i, state := range results {
+		if state.Panicked {
+			fmt.Printf(
+				"Path %d: panic\nConstraints: %s\n\n",
+				i+1,
+				state.PathCondition,
+			)
+			continue
+		}
+		frame := state.CallStack[len(state.CallStack)-1]
+
+		condition, err := zt.TranslateExpression(state.PathCondition)
+		if err != nil {
+			panic(err)
+		}
+
+		value, err := zt.TranslateExpression(frame.ReturnValue)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Printf(
+			"Path %d\nConstraints: %s\nResult: %s\nZ3 conditions: %v\nZ3 result: %v\n\n",
+			i+1,
+			state.PathCondition,
+			frame.ReturnValue,
+			condition,
+			value,
+		)
+	}
 }
